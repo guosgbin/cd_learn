@@ -85,6 +85,9 @@ pipeline {
                         git config url."https://x-access-token:${GT}@github.com/".insteadOf "https://github.com/"
                         # 清掉上一次失败残留，避免 release 误“续跑”
                         rm -f release.properties pom.xml.releaseBackup
+                        # 删掉工作区/远程可能残留的同名 tag，避免 “tag already exists”
+                        git tag -d helloworld-1.0.0 2>/dev/null || true
+                        git push origin :refs/tags/helloworld-1.0.0 2>/dev/null || true
                         mvn -B -ntp -Dmaven.repo.local=/var/jenkins_home/.m2/repository release:prepare -Darguments=-DskipTests
                     '''
                 }
