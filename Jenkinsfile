@@ -54,11 +54,14 @@ pipeline {
                         // [name: 'server-3', ssh: 'root@host.docker.internal', port: '2223'],
                     ]
                     // =====================================================
-                    sshagent(credentials: ['server-deploy-key']) {
+                    // 用 sshUserPrivateKey 显式导出私钥文件，避开 sshagent 的凭据类型绑定坑
+                    withCredentials([sshUserPrivateKey(credentialsId: 'server-deploy-key',
+                                                       keyFileVariable: 'SSH_KEY',
+                                                       usernameVariable: 'SSH_USER')]) {
                         for (s in servers) {
                             // 逐台串行 + 人工确认，点“部署”才发这一台
                             input message: "确认部署到 ${s.name} (${s.ssh}:${s.port})？", ok: '部署'
-                            deployServer(s.ssh, s.port, env.DEPLOY_DIR, env.IMAGE_NAME)
+                            deployServer(s.ssh, s.port, env.DEPLOY_DIR, env.IMAGE_NAME, env.SSH_KEY)
                         }
                     }
                 }
@@ -71,7 +74,7 @@ pipeline {
         stage('发版 Maven Release') {
             when { expression { params.DO_RELEASE } }
             steps {
-                withCredentials([string(credentialsId: 'github-token', variable: 'GT')]) {
+                withCredentials([string(credentialsId: 'server-deploy-key', variable: 'GT')]) {
                     sh '''
                         git config user.email "ci@local"
                         git config user.name "jenkins"
@@ -92,12 +95,13 @@ pipeline {
 }
 
 // 部署函数：建目录 -> scp jar+Dockerfile -> 远端 docker build & run
-def deployServer(String sshHost, String port, String deployDir, String imageName) {
+// keyFile 为 withCredentials 导出的临时私钥文件，ssh/scp 均用 -i 指定
+def deployServer(String sshHost, String port, String deployDir, String imageName, String keyFile) {
     sh """
 set -e
-ssh -o StrictHostKeyChecking=no -p ${port} ${sshHost} 'mkdir -p ${deployDir}'
-scp -o StrictHostKeyChecking=no -P ${port} helloworld.jar Dockerfile ${sshHost}:${deployDir}/
-ssh -o StrictHostKeyChecking=no -p ${port} ${sshHost} '
+ssh -o StrictHostKeyChecking=no -i ${keyFile} -p ${port} ${sshHost} 'mkdir -p ${deployDir}'
+scp -o StrictHostKeyChecking=no -i ${keyFile} -P ${port} helloworld.jar Dockerfile ${sshHost}:${deployDir}/
+ssh -o StrictHostKeyChecking=no -i ${keyFile} -p ${port} ${sshHost} '
 set -e
 cd ${deployDir}
 docker build -t ${imageName}:latest .
