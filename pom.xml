@@ -11,14 +11,14 @@
 
     <groupId>com.example</groupId>
     <artifactId>helloworld</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1-SNAPSHOT</version>
     <name>helloworld</name>
 
     <scm>
         <connection>scm:git:https://github.com/guosgbin/cd_learn.git</connection>
         <developerConnection>scm:git:https://github.com/guosgbin/cd_learn.git</developerConnection>
         <url>https://github.com/guosgbin/cd_learn</url>
-        <tag>helloworld-1.0.0</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <properties>
