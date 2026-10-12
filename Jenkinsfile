@@ -7,20 +7,28 @@ pipeline {
     }
 
     environment {
-        // 两台目标机（Jenkins 容器内用 host.docker.internal 指向宿主机）
-        SERVER1_SSH = 'root@host.docker.internal'
-        SERVER2_SSH = 'root@host.docker.internal'
-        SERVER1_PORT = '2221'
-        SERVER2_PORT = '2222'
         DEPLOY_DIR = '/opt/app'
         IMAGE_NAME = 'helloworld'
     }
 
+    parameters {
+        booleanParam(
+            name: 'DO_RELEASE',
+            defaultValue: false,
+            description: '勾选后执行 Maven Release：打 tag + 升 SNAPSHOT + push 回 GitHub（需先在 Jenkins 配好 github-token 凭据）'
+        )
+    }
+
     stages {
+        // 真正的 git 检出：整条流水线基于 git，工作区自带 .git，方便后续发版提交/push
         stage('同步代码') {
             steps {
-                // 把宿主机挂载进来的源码复制到构建工作区（排除本地 target 和 servers）
-                sh 'tar -C /src --exclude=./target --exclude=./servers -cf - . | tar -xf -'
+                checkout([$class: 'GitSCM',
+                    branches: [[name: '*/main']],
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/guosgbin/cd_learn.git',
+                        credentialsId: 'github-token'
+                    ]]])
             }
         }
 
@@ -28,25 +36,49 @@ pipeline {
             steps {
                 // -B 非交互、-ntp 不下载进度条；本地仓库放 jenkins_home 以便持久化
                 sh 'mvn -B -ntp -DskipTests -Dmaven.repo.local=/var/jenkins_home/.m2/repository package'
-                // 复制到工作区根目录，便于传输
-                sh 'cp target/helloworld-1.0.0.jar helloworld.jar'
+                // 复制到工作区根目录，便于传输（通配版本号，SNAPSHOT 变化也不怕）
+                sh 'cp target/helloworld-*.jar helloworld.jar'
             }
         }
 
-        stage('部署到两台服务器') {
+        // 串行 + 逐台人工确认：用循环遍历机器清单，每台部署前 input 卡一道
+        stage('逐台确认并部署') {
             steps {
                 script {
-                    // 与团队一致：用 sshagent 注入私钥，裸 ssh/scp 远程执行
+                    // ===== 目标机清单：以后新增机器，只需往这个列表加一项 =====
+                    // name: 展示名；ssh: 登录地址（Jenkins 容器内用 host.docker.internal 指向宿主机）
+                    // port: 该机器映射出来的 SSH 端口
+                    def servers = [
+                        [name: 'server-1', ssh: 'root@host.docker.internal', port: '2221'],
+                        [name: 'server-2', ssh: 'root@host.docker.internal', port: '2222'],
+                        // [name: 'server-3', ssh: 'root@host.docker.internal', port: '2223'],
+                    ]
+                    // =====================================================
                     sshagent(credentials: ['server-deploy-key']) {
-                        parallel(
-                            'server-1': {
-                                deployServer(env.SERVER1_SSH, env.SERVER1_PORT, env.DEPLOY_DIR, env.IMAGE_NAME)
-                            },
-                            'server-2': {
-                                deployServer(env.SERVER2_SSH, env.SERVER2_PORT, env.DEPLOY_DIR, env.IMAGE_NAME)
-                            }
-                        )
+                        for (s in servers) {
+                            // 逐台串行 + 人工确认，点“部署”才发这一台
+                            input message: "确认部署到 ${s.name} (${s.ssh}:${s.port})？", ok: '部署'
+                            deployServer(s.ssh, s.port, env.DEPLOY_DIR, env.IMAGE_NAME)
+                        }
                     }
+                }
+            }
+        }
+
+        // 发版（可选）：勾 DO_RELEASE 才执行
+        // 1) git checkout -B main：Jenkins 检出是 detached HEAD，release 插件探测不到分支，必须先挂回 main
+        // 2) 把 origin 换成带 token 的 URL：release:prepare 要 push tag 和升级 commit，需要凭据
+        stage('发版 Maven Release') {
+            when { expression { params.DO_RELEASE } }
+            steps {
+                withCredentials([string(credentialsId: 'github-token', variable: 'GT')]) {
+                    sh '''
+                        git config user.email "ci@local"
+                        git config user.name "jenkins"
+                        git checkout -B main
+                        git remote set-url origin "https://x-access-token:${GT}@github.com/guosgbin/cd_learn.git"
+                        mvn -B -ntp -Dmaven.repo.local=/var/jenkins_home/.m2/repository release:prepare -Darguments=-DskipTests
+                    '''
                 }
             }
         }
