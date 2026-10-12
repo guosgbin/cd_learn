@@ -35,7 +35,7 @@ pipeline {
         stage('编译打包') {
             steps {
                 // -B 非交互、-ntp 不下载进度条；本地仓库放 jenkins_home 以便持久化
-                sh 'mvn -B -ntp -DskipTests -Dmaven.repo.local=/var/jenkins_home/.m2/repository package'
+                sh 'mvn -B -ntp -DskipTests -Dmaven.repo.local=/var/jenkins_home/.m2/repository clean package'
                 // 复制到工作区根目录，便于传输（通配版本号，SNAPSHOT 变化也不怕）
                 sh 'cp target/helloworld-*.jar helloworld.jar'
             }
