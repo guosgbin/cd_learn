@@ -16,6 +16,13 @@
     <version>1.0.0</version>
     <name>helloworld</name>
 
+    <scm>
+        <connection>scm:git:https://github.com/guosgbin/cd_learn.git</connection>
+        <developerConnection>scm:git:https://github.com/guosgbin/cd_learn.git</developerConnection>
+        <url>https://github.com/guosgbin/cd_learn</url>
+        <tag>HEAD</tag>
+    </scm>
+
     <properties>
         <java.version>17</java.version>
     </properties>
