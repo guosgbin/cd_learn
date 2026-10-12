@@ -80,7 +80,11 @@ pipeline {
                         git config user.email "ci@local"
                         git config user.name "jenkins"
                         git checkout -B main
-                        git remote set-url origin "https://x-access-token:${GT}@github.com/guosgbin/cd_learn.git"
+                        # release 插件打 tag 时直接读 pom 里的 scm 地址(裸 https)，不认 origin，
+                        # 故用 insteadOf 把任意 https://github.com/ 自动补上 token，确保 push 带鉴权
+                        git config url."https://x-access-token:${GT}@github.com/".insteadOf "https://github.com/"
+                        # 清掉上一次失败残留，避免 release 误“续跑”
+                        rm -f release.properties pom.xml.releaseBackup
                         mvn -B -ntp -Dmaven.repo.local=/var/jenkins_home/.m2/repository release:prepare -Darguments=-DskipTests
                     '''
                 }
