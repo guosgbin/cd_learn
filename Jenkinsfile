@@ -54,11 +54,9 @@ pipeline {
                         // [name: 'server-3', ssh: 'root@host.docker.internal', port: '2223'],
                     ]
                     // =====================================================
-                    // 保留 server-deploy-key（SSH 私钥凭据），用 sshUserPrivateKey 绑定导出私钥文件
-                    // 避开 sshagent 的凭据类型绑定 bug；凭据类型无需改动
-                    withCredentials([sshUserPrivateKey(credentialsId: 'server-deploy-key',
-                                                       keyFileVariable: 'SSH_KEY',
-                                                       usernameVariable: 'SSH_USER')]) {
+                    // 你这台 Jenkins 的 SSH 凭据绑定插件无法绑定 SSH 类型凭据，
+                    // 故 server-deploy-key 需存为「Secret file」普通文件凭据，用 file() 绑定喂给 ssh -i
+                    withCredentials([file(credentialsId: 'server-deploy-key', variable: 'SSH_KEY')]) {
                         for (s in servers) {
                             // 逐台串行 + 人工确认，点“部署”才发这一台
                             input message: "确认部署到 ${s.name} (${s.ssh}:${s.port})？", ok: '部署'
