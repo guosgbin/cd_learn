@@ -54,10 +54,9 @@ pipeline {
                         // [name: 'server-3', ssh: 'root@host.docker.internal', port: '2223'],
                     ]
                     // =====================================================
-                    // 用 sshUserPrivateKey 显式导出私钥文件，避开 sshagent 的凭据类型绑定坑
-                    withCredentials([sshUserPrivateKey(credentialsId: 'server-deploy-key',
-                                                       keyFileVariable: 'SSH_KEY',
-                                                       usernameVariable: 'SSH_USER')]) {
+                    // 私钥以「Secret file」普通文件凭据存放，用 file() 绑定直接喂给 ssh -i
+                    // 不依赖 SSH 专用插件，兼容性最好
+                    withCredentials([file(credentialsId: 'server-deploy-key', variable: 'SSH_KEY')]) {
                         for (s in servers) {
                             // 逐台串行 + 人工确认，点“部署”才发这一台
                             input message: "确认部署到 ${s.name} (${s.ssh}:${s.port})？", ok: '部署'
