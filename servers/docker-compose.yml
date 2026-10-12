@@ -1,0 +1,26 @@
+services:
+  server-1:
+    build: .
+    container_name: server-1
+    privileged: true            # dind 必须
+    ports:
+      - "2221:22"               # SSH（Jenkins 连这个）
+      - "8081:8080"             # 应用端口（验证用：localhost:8081）
+    volumes:
+      - server1_docker:/var/lib/docker
+    restart: unless-stopped
+
+  server-2:
+    build: .
+    container_name: server-2
+    privileged: true
+    ports:
+      - "2222:22"
+      - "8082:8080"
+    volumes:
+      - server2_docker:/var/lib/docker
+    restart: unless-stopped
+
+volumes:
+  server1_docker:
+  server2_docker:
